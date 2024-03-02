@@ -13,8 +13,8 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import matplotlib
-from scipy import spatial
 from genren import GenerativeVolumeRenderer
+from splatting_utils import loading_volume as vol
 
 import torch
 from torch.autograd import Variable
@@ -33,6 +33,9 @@ matplotlib.rcParams.update({'font.size': 12})
 #matplotlib.rcParams['font.weight'] = 'heavy'
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
+file_path = "./volumedata/tooth_103x94x161_uint8.raw"
+dimensions = (161, 94, 103)  # 体数据维度
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class SENExplorer(QWidget):
     def __init__(self, opt=None):
@@ -55,10 +58,9 @@ class SENExplorer(QWidget):
             tr = torch.load(opt.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'})
         op = tr.opNet[0]
 
-        if opt.range is None:
-            scalar_range = None
-        else:
-            scalar_range = np.load(opt.range)
+        scalar_range = vol.read_raw_volume(file_path, dimensions) # np.array
+        # change to torch.Temsor: 
+        # torch.from_numpy(vol.volume_to_voxels(volume, use_tag=True, tag_volume=tag_voxels)).to(device)
 
         self.genren = GenerativeVolumeRenderer(op, tr, scalar_range=scalar_range, use_cuda=opt.cuda, gid=opt.gid)
 
