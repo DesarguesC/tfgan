@@ -10,6 +10,7 @@ checkpoints/
 # static-inpaint/ 
 # static/
 
+.DS_Store
 key.csv
 # *.txt
 *.docx
