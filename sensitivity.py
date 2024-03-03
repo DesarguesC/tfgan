@@ -1,7 +1,4 @@
-import sys
-import os
-import time
-
+import torch, tf_generator, argparse, sys, os, time
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QColorDialog
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QPalette
@@ -11,31 +8,39 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import RectangleSelector
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 import matplotlib
-from genren import GenerativeVolumeRenderer
-from splatting_utils import loading_volume as vol
 
-import torch
-from torch.autograd import Variable
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 data_generator_dir = os.path.abspath(os.path.join(file_dir, os.pardir)) + '/data_generator'
 sys.path.insert(0, data_generator_dir)
 
-import tf_generator
-
 import numpy as np
 from PIL import Image
-import argparse
+
 # Global variables
 matplotlib.rcParams.update({'font.size': 12})
 #matplotlib.rcParams['font.weight'] = 'heavy'
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
+# 3D Gaussian Splatting
+import torch.optim as optim
+import torch.nn.functional as F
+# import torchvision.models as models
+from torch import nn
+import splatting.my_renderer.loading_volume as vol
+import splatting.my_renderer.cameras as camera
+import splatting.my_renderer.mapping as mapping
+import splatting.my_renderer.rendering as rendering
+import splatting.my_renderer.my_renderer as my_renderer
+from splatting.texture import *
+
+
 file_path = "./volumedata/tooth_103x94x161_uint8.raw"
 dimensions = (161, 94, 103)  # 体数据维度
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# 这里以后可以改成前端输入
+
 
 class SENExplorer(QWidget):
     def __init__(self, opt=None):
@@ -56,19 +61,48 @@ class SENExplorer(QWidget):
             tr = torch.load(opt.trnet, map_location={'cuda:0': 'cuda:%d' % opt.gid, 'cuda:1': 'cuda:%d' % opt.gid})
         else:
             tr = torch.load(opt.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'})
-        op = tr.opNet[0]
 
         scalar_range = vol.read_raw_volume(file_path, dimensions) # np.array
         # change to torch.Temsor: 
         # torch.from_numpy(vol.volume_to_voxels(volume, use_tag=True, tag_volume=tag_voxels)).to(device)
+        # self.genren = GenerativeVolumeRenderer(op, tr, scalar_range=scalar_range, use_cuda=opt.cuda, gid=opt.gid)
+        self.drawing = self.init_drawing()
+        self.tf_resolution = 64
+        self.colors = 0.5 * torch.rand(self.tf_resolution, 4).to(device)
+        self.TFmapping = TFMapping(self.tf_resolution, self.colors, device=device, lock=True).to(device)
+        self.genren = my_renderer.Renderer(
+                        mapping=self.TFmapping,
+                        rendering=self.drawing
+                    )
 
-        self.genren = GenerativeVolumeRenderer(op, tr, scalar_range=scalar_range, use_cuda=opt.cuda, gid=opt.gid)
-
-        self.cm = matplotlib.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap(name='plasma'))
+        self.cm = matplotlib.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap(name='plasma')) # meaning?
         # initialize
         self.setWindowTitle('TF Sensitivity')
         self.initUI()
         self.layout_window()
+
+    def init_drawing(self):
+        R, T = camera.look_at_view_transform(20, 10, 270, device=device)
+        self.camera = camera.FoVOrthographicCameras(device=device, R=R, T=T, znear=0.01, scale_xyz=((1.5, 1.5, 1.5),))
+        self.rendering_settings = rendering.RenderingSettings(
+            image_width=512,
+            image_height=512,
+            radius=75
+        )
+        return rendering.Rendering(cameras=self.camera, rendering_settings=self.rendering_settings)
+
+
+    def update_drawing(self, elev, azim):
+        R, T = camera.look_at_view_transform(20, elev, azim, device=device) # 只修改elev和azim ?
+        self.camera = camera.FoVOrthographicCameras(device=device, R=R, T=T, znear=0.01, scale_xyz=((1.5, 1.5, 1.5),))
+        self.rendering_settings = rendering.RenderingSettings(
+            image_width=512,
+            image_height=512,
+            radius=75
+        )
+        self.drawing = rendering.Rendering(cameras=self.camera, rendering_settings=self.rendering_settings)
+        # self.TFmapping
+
 
     def update_sensitivities(self):
         sens = self.genren.predict_all_sensitivities(self.genren.elevation, self.genren.azimuth, self.genren.roll, self.genren.zoom, self.num_sens_blocks)
@@ -157,10 +191,11 @@ class SENExplorer(QWidget):
 #
 
 class ImageViewer(QWidget):
+    #  窗口类, 会打开窗口
     def __init__(self, parent, genren, cm, img_res=256, num_blocks=8, op_range=(127, 255)):
         super().__init__(parent)
         self.num_blocks = num_blocks
-        self.main_interface = parent
+        self.main_interface = parent # meaning?
         self.img_res = img_res
         self.genren = genren
         self.prior_mouse_position = None
@@ -173,15 +208,16 @@ class ImageViewer(QWidget):
         self.image_label.show()
         self.sens = np.zeros([self.num_blocks, self.num_blocks])
         self.op_range = op_range
-        self.g_sens_cm = cm
+        self.g_sens_cm = cm # meaning?
 
         self.np_img = None
         self.selected_x = 0
         self.do_gaussian = False
 
+        # 以下部分不用管
         # set background color
-        pal = QPalette()
-        bgColor = QColor()
+        pal = QPalette() # 调色板
+        bgColor = QColor() # 颜色对象, 调色
         # bgColor.setRgbF(0.310999694819562063, 0.3400015259021897, 0.4299992370489052)
         bgColor.setRgbF(0, 0, 0)
         pal.setColor(QPalette.Background, bgColor)
