@@ -10,6 +10,7 @@ checkpoints/
 # static-inpaint/ 
 # static/
 
+renderer/bh_tsne/tsne
 .DS_Store
 key.csv
 # *.txt
