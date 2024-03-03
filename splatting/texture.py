@@ -3,11 +3,30 @@ import torch.optim as optim
 import torch.nn.functional as F
 # import torchvision.models as models
 from torch import nn
+import numpy as np
 import splatting.my_renderer.loading_volume as vol
 import splatting.my_renderer.cameras as camera
 import splatting.my_renderer.mapping as mapping
 import splatting.my_renderer.rendering as rendering
 import splatting.my_renderer.my_renderer as my_renderer
+
+def get_tag_voxels(dimensions):
+    """
+        这里后面改成从学长那里获取降维并选取好目标点的tag即可
+    """
+    # e.g.: dimensions = (41,41,41)
+    cut_num = 2 # 一次只修改一个，需要有多区域就重复迭代
+    tag_voxels = np.zeros(dimensions)
+    # 将z后一半的体数据的tag标为1，是需要修改的部分
+    for z in range(cut_num):
+        for i in range(dimensions[0]):
+            for j in range(dimensions[1]):
+                end = min(dimensions[-1], (z+1)*(dimensions[-1]//cut_num))
+                begin = z*(dimensions[-1]//cut_num)
+                for k in range(begin,end):
+                    tag_voxels[i][j][k] = z
+    assert np.max(tag_voxels) <= 1., f'np.max(tag_voxels) = {np.max(tag_voxels)}'
+    return tag_voxels
 
 def local_creator(resolution, colors, device):
     # alpha_ = 0.09 * torch.randn(1,1).to(device) # 方差越小越好, 但0.又不行, 0.1可(基本上最佳), 0.05-0.09不可

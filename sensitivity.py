@@ -42,6 +42,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 这里以后可以改成前端输入
 
 
+
 class SENExplorer(QWidget):
     def __init__(self, opt=None):
         super().__init__()
@@ -62,7 +63,10 @@ class SENExplorer(QWidget):
         else:
             tr = torch.load(opt.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'})
 
-        scalar_range = vol.read_raw_volume(file_path, dimensions) # np.array
+        volumes = vol.read_raw_volume(file_path, dimensions) # np.array
+        voxels = torch.from_numpy(vol.volume_to_voxels(volumes, use_tag=True, tag_volume=get_tag_voxels(dimensions))).to(device)
+        print(voxels.shape)
+
         # change to torch.Temsor: 
         # torch.from_numpy(vol.volume_to_voxels(volume, use_tag=True, tag_volume=tag_voxels)).to(device)
         # self.genren = GenerativeVolumeRenderer(op, tr, scalar_range=scalar_range, use_cuda=opt.cuda, gid=opt.gid)
@@ -154,6 +158,7 @@ class SENExplorer(QWidget):
         self.image_viewer.do_update(False)
 
     def keyPressEvent(self, event):
+        # 点击如"确认编辑" (前面已经在canvas上画好了mask)
         if (event.key() == QtCore.Qt.Key_Escape):
             sys.exit(0)
         if event.key() == QtCore.Qt.Key_T:
@@ -732,10 +737,10 @@ class ColorTFEditor(MyMplCanvas):
 
 def main():
     parser = argparse.ArgumentParser("python sensitivity.py")
-    parser.add_argument("trnet", help="translatenet file name")
-    parser.add_argument("--range", default=None, help="npy volume's mix/max range")
-    parser.add_argument("--cuda", action="store_true", help="use cuda")
-    parser.add_argument("--gid", default=0, type=int, help="GPU device id, default 0")
+    # parser.add_argument("trnet", help="translatenet file name")
+    # parser.add_argument("--range", default=None, help="npy volume's mix/max range")
+    # parser.add_argument("--cuda", action="store_true", help="use cuda")
+    # parser.add_argument("--gid", default=0, type=int, help="GPU device id, default 0")
     args = parser.parse_args()
     app = QApplication(sys.argv)
     renderer = SENExplorer(args)

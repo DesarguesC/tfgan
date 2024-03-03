@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import matplotlib
 from genren import GenerativeVolumeRenderer
-from splatting_utils import loading_volume as vol
+import splatting.my_renderer.loading_volume as vol
 
 import torch
 from torch.autograd import Variable
