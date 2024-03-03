@@ -1,0 +1,8 @@
+#ifndef CUDA_RENDERING_CONFIG_H_INCLUDED
+#define CUDA_RENDERING_CONFIG_H_INCLUDED
+
+#define NUM_CHANNELS 3 // Default 3, RGB
+#define BLOCK_X 8
+#define BLOCK_Y 8
+
+#endif

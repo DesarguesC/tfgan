@@ -26,44 +26,30 @@ def read_raw_volume(file_path, dimensions, dtype=np.uint8):
     
     return volume
 
-def volume_to_voxels(volume, use_tag=False, tag_volume=None):
+def volume_to_points(volume):
     """将体数据转换为颜色点集合"""
-    if use_tag: assert tag_volume is not None, 'no tag_volume input'
+    
     dims = volume.shape
-    voxels = []
-    # 找到dims中的最大值
-    max_dim = max(dims)
+    points = []
     
     # 遍历每个体素
     for x in range(dims[0]):
         for y in range(dims[1]):
             for z in range(dims[2]):
+                
                 # 获取体素的密度值
                 density = volume[x, y, z]
-                if(density > 100):
-                    #voxels.append([x/max_dim-0.5, y/max_dim-0.5, z/max_dim-0.5, density])
-                    voxels.append([y/max_dim-0.5, -x/max_dim+0.5, z/max_dim-0.5, density] if not use_tag else 
-                                  [y/max_dim-0.5, -x/max_dim+0.5, z/max_dim-0.5, density, tag_volume[x, y, z]])
-                # voxels.append([x/dims[0]-0.5, y/dims[1]-0.5, z/dims[2]-0.5, density])
+                if(density > 180):
+                # 添加颜色点（x, y, z, density
+                    points.append([x/dims[0]-0.5, y/dims[1]-0.5, z/dims[2]-0.5, 1, density])
     
-    return np.array(voxels)
+    return np.array(points)
 
-def revocer_volume(xyz, max_dim: int):
-    """
-        将压缩到屏幕内到voxel还原为volume
-        输入为np.array, Shape [N, 3]
-    """
-    x, y, z = xyz[:, 1] - 0.5, xyz[:, 0] + 0.5, xyz[:, 2] + 0.5
-    x, y, z = -x * max_dim, y * max_dim, z * max_dim
-    ans = [[x.tolist(), y.tolist(), z.tolist()]] # Shape [N, 3]
-    return  ans
-
-# test
+# 使用示例
 if __name__ == "__main__":
     file_path = r"D:/files/study/splatting_pytorch/nucleon_41x41x41_uint8.raw"
     dimensions = (41, 41, 41)  # 体数据维度
     volume = read_raw_volume(file_path, dimensions)
-    voxels = volume_to_voxels(volume)
+    points = volume_to_points(volume)
     print("Volume shape:", volume.shape)
     print("First voxel value:", volume[21, 21, 21])
-
