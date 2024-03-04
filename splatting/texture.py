@@ -4,11 +4,11 @@ import torch.nn.functional as F
 # import torchvision.models as models
 from torch import nn
 import numpy as np
-import splatting.my_renderer.loading_volume as vol
-import splatting.my_renderer.cameras as camera
+# import splatting.my_renderer.loading_volume as vol
+# import splatting.my_renderer.cameras as camera
 import splatting.my_renderer.mapping as mapping
-import splatting.my_renderer.rendering as rendering
-import splatting.my_renderer.my_renderer as my_renderer
+# import splatting.my_renderer.rendering as rendering
+# import splatting.my_renderer.my_renderer as my_renderer
 
 def get_tag_voxels(dimensions):
     """

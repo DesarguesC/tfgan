@@ -1,7 +1,7 @@
 # 3D Gaussian Splatting
 import torch.optim as optim
 import torch.nn.functional as F
-# import torchvision.models as models
+import torchvision.models as models
 from torch import nn
 import splatting.my_renderer.loading_volume as vol
 import splatting.my_renderer.cameras as camera
@@ -14,7 +14,7 @@ import sys, os, torch
 from PyQt5.QtWidgets import (
                             QApplication, QMainWindow, QWidget, QPushButton,
                             QVBoxLayout, QHBoxLayout, QColorDialog, QSlider, QLabel,
-                            QComboBox
+                            QComboBox, QGridLayout
                              )
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor
 from PyQt5.QtCore import Qt, QPoint
@@ -33,6 +33,8 @@ volumes = vol.read_raw_volume(file_path, dimensions) # np.array
 voxels = torch.from_numpy(vol.volume_to_voxels(volumes, use_tag=True, tag_volume=get_tag_voxels(dimensions))).to(device)
 # TODO: 在get_tag_voxels中加入学长写的降维后选中数据点的方法, 打上tag即可
 print(voxels.shape)
+
+
 R, T = camera.look_at_view_transform(20, 10, 270, device=device)
 cameras = camera.FoVOrthographicCameras(device=device, R=R, T=T, znear=0.01, scale_xyz=((1.5, 1.5, 1.5),))
 rendering_settings = rendering.RenderingSettings(
@@ -41,11 +43,11 @@ rendering_settings = rendering.RenderingSettings(
     radius=75
 )
 drawing = rendering.Rendering(cameras=cameras, rendering_settings=rendering_settings)
-
 texture_tf = TFMapping(tf_resolution, colors, device=device, lock=True).to(device)
 texture_tf.flash(voxels)
 # focus: texture_tf.tag_list
 
+# texture_tf = None
 
 def do_vatiatinal_edit():
     """
@@ -74,8 +76,6 @@ def draw_texture(tf_func, tag):
 
 
 
-
-
 class TFCurve(QWidget):
     def __init__(self, texture_mapping):
         super().__init__()
@@ -86,7 +86,7 @@ class TFCurve(QWidget):
         self.show_TFcurve(tag=texture_mapping[-1])
     def show_TFcurve(self, tag=0):
         image_label = QLabel(self)
-        if tag not in self.tf.tag_list:
+        if not hasattr(self.tf, 'tag_list') or tag not in self.tf.tag_list:
             pixmap = QPixmap('./render_img/none.jpg')
         else:
             LocalTF = self.tf.LocalTF[tag]
@@ -181,9 +181,9 @@ class MainWindow(QMainWindow):
             上传的体数据, 初始视角的当前渲染结果在ref_test.jpg中, 手画编辑结果存在color.jpg和mask.jpg中, 
             降维体数据的二维图在points.jpg中, 编辑结果当前视角渲染结果在output.jpg中
         """
-        self.rendered = ImageViewer('./render_img/ref_test.jpg') # 初始渲染结果, 这个后面再变成实时渲染
+        self.rendered_input = ImageViewer('./render_img/ref_test.jpg') # 初始渲染结果, 这个后面再变成实时渲染
         self.reducted = ImageViewer('./render_img/points.jpg')
-        self.output = ImageViewer('./render_img/output.jpg') # 最终编辑结果, 这个后main再变成实时渲染
+        self.rendered_output = ImageViewer('./render_img/output.jpg') # 最终编辑结果, 这个后main再变成实时渲染
 
         self.canvas = Canvas()
         self.TFCurve = TFCurve(texture_tf) # 当作ImageViewer类来处理, 一个图形显示器
@@ -206,34 +206,32 @@ class MainWindow(QMainWindow):
         self.combo_box.addItem(str(texture_tf.tag_list[-1]))
         self.combo_box.currentIndexChanged.connect(self.on_combobox_changed) # 切换选项
 
-        # show render result in previous step, which is saved in './render_img/ref_test.jpg'
-        h_layout = QHBoxLayout() # TODO: For Canvas (水平布局, 理解为指明其中元素为水平关系)
-        v_layout = QVBoxLayout() # TODO: For Column (垂直布局, 理解为指明其中元素为垂直关系)
+        grid_layout = QGridLayout()
 
+
+        v_layout = QVBoxLayout()  # TODO: For Column (垂直布局, 理解为指明其中元素为垂直关系)
+        # 这里用来放canvas和配套按钮
+        h_layout = QHBoxLayout()  # TODO: For Canvas (水平布局, 理解为指明其中元素为水平关系)
+        # 这里用来放水平并列摆放的按钮
+
+        # v_layout.addWidget(self.canvas)
+        v_layout.addWidget(penWidthSlider)
         h_layout.addWidget(self.colorButton)
         h_layout.addWidget(self.saveButton)
-
-        v_layout.addWidget(self.canvas)
-        v_layout.addWidget(penWidthSlider)
         v_layout.addLayout(h_layout)
-        # TODO: CANVAS end !
-        """
-            v_layout => CANVAS module
-        """
+        self.button_layout = v_layout
+
+        grid_layout.addWidget(self.rendered_input, 0, 0)
+        grid_layout.addWidget(self.canvas, 0, 1)
+        grid_layout.addWidget(self.reducted, 0, 2)
+        grid_layout.addWidget(self.TFCurve, 1, 0)
+        grid_layout.addLayout(self.button_layout, 1, 1)
+        grid_layout.addWidget(self.rendered_output, 1, 2)
 
         widget = QWidget()
-        widget.setLayout(v_layout)
+        widget.setLayout(grid_layout)
         self.setCentralWidget(widget)
 
-        # layout = QVBoxLayout()
-        # layout.addWidget(self.canvas, 1)
-        # layout.addStretch(1)
-        # layout.addWidget(colorButton)
-        # layout.addWidget(penWidthLabel)
-        # layout.addWidget(penWidthSlider)
-        # layout.addWidget(saveButton)
-        # widget = QWidget()
-        # widget.setLayout(layout)
         self.setCentralWidget(widget)
 
     def saveMask(self):
